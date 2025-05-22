@@ -1,0 +1,25 @@
+\documentclass[12pt]{book}
+\input{preamble}
+
+\begin{document}
+\frontmatter
+
+\input{fancy}
+\input{title}
+
+% i hate this
+\begingroup
+\let\newpage\relax
+\tableofcontents
+\endgroup
+
+
+\mainmatter
+\pagestyle{main}
+\titleformat{\chapter}[display]{\vfill\filcenter\bfseries}{\huge\chaptername~\thechapter}{10ex}{\Huge}%
+[\vfill\null\thispagestyle{empty}\clearpage]
+\titlespacing{\chapter}{0pt}{0ex}{0ex}
+
+%{{recipes}}
+
+\end{document}

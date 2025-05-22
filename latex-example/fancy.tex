@@ -1,0 +1,12 @@
+% Clear default header/footer
+\fancyhf{}
+
+% Define the style for regular pages
+\fancypagestyle{main}{
+    \fancyhf{} % clear all header and footer fields
+    \fancyhead[LE,RO]{\thepage} % page number on left of even pages and right of odd pages
+    \fancyhead[RE]{\small\MakeUppercase{\leftmark}} % chapter on right of even pages
+    \fancyhead[LO]{\small\MakeUppercase{\rightmark}} % section on left of odd pages
+    \renewcommand{\headrulewidth}{0pt} % remove header rule
+    \renewcommand{\footrulewidth}{0pt} % remove footer rule
+}

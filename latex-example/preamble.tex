@@ -1,0 +1,112 @@
+
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor} % colors
+\usepackage{paracol} % Multi columns
+\setlength\columnsep{0.05\textwidth}
+
+\usepackage{setspace} % Change line spacing
+
+\usepackage{enumitem} % List customisation
+\setlist{partopsep=0pt, topsep=0pt} % Remove vertical spacing before
+
+\setlength{\parindent}{0pt} % Remove paragraph indentation
+
+\usepackage[T1]{fontenc}  % International characthers
+\usepackage[utf8]{inputenc} % Read UTF8
+
+\usepackage{xparse} % Command and environment parser
+
+\usepackage{libertine} % font
+
+\usepackage[newlinetospace]{titlesec} % modify headers
+
+\usepackage{fancyhdr} % Fancy headers
+\setlength{\headheight}{15pt}
+\setlength{\headsep}{2em}  % This adds 1em of vertical space below the header
+
+% Define custom colors
+\definecolor{headercolor}{RGB}{0,0,0}
+\definecolor{textgray}{RGB}{100,100,100}
+
+\usepackage{dashrule} % Dashes
+\newcommand{\seprule}{\hdashrule[0pt][x]{\textwidth}{0.5pt}{1pt}} % Outputs a dashed horizontal rule to separate major recipe elements
+
+\renewcommand{\chaptermark}[1]{\markboth{Chapter \thechapter: #1}{}}
+
+\newenvironment{recipe}{
+	\columnratio{0.32, 0.68}
+	\begin{paracol}{2}
+		}{
+	\end{paracol}
+}
+
+% Custom command for recipe header
+\newcommand{\recipeheader}[1]{
+	\addcontentsline{toc}{section}{#1}
+	\begin{center}
+		{\fontsize{24}{28}\selectfont\textbf{#1}}
+		\vspace{1em}
+	\end{center}
+}
+
+% Custom command for recipe description
+\newcommand{\recipedesc}[1]{
+	\begin{center}
+		\textit{#1}
+	\end{center}
+}
+
+% Custom command for recipe metadata
+\newcommand{\recipemeta}[4]{
+	\seprule
+
+	\vspace*{0.0055\textheight}
+	{
+		\centering
+		\textbf{SERVES}\hspace{0.5em}#1\hspace{2em}
+		\textbf{PREP}\hspace{0.5em}#2\hspace{2em}
+		\textbf{COOKING}\hspace{0.5em}#3\hspace{2em}
+		\textbf{DIFFICULTY}\hspace{0.5em}#4\par
+	}
+	\vspace*{-0.004\textheight}
+
+	\seprule
+
+	\vspace*{1em}
+}
+
+% Custom environment for ingredients list
+\newenvironment{ingredients}{
+	\switchcolumn[0]*
+
+	\renewcommand\item[1]{\textit{\small ##1}\par\vspace{0.01\textheight}}
+}{
+}
+
+% Custom environment for instructions
+\NewDocumentEnvironment{instructions}{ +b }{
+	\switchcolumn[1]
+	\setstretch{1.1}
+
+	\let\olditem\item
+	\renewcommand\item[1]{\olditem \hspace{-3pt}{\large ##1}}
+
+	\begin{sloppypar}
+		\begin{enumerate}[
+				align=left,
+				leftmargin=0pt,
+				itemindent=!,
+			]
+			#1
+		\end{enumerate}
+	\end{sloppypar}
+
+	\setstretch{1}
+}
+
+\newcommand{\recipenote}[1]{
+	\switchcolumn[1]
+
+	\vspace{1em}
+	{\color{textgray}\textit{#1}}
+}

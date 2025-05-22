@@ -1,0 +1,31 @@
+name: build
+on:
+  # pull_request:
+  #   branches: [master]
+  workflow_call:
+
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Call Dagger Function
+        uses: dagger/dagger-for-github@v7
+        with:
+          version: "latest"
+          verb: call
+          args: compile --source=. -o /tmp/cooklatex
+          # assumes the Dagger Cloud token is in
+          # a repository secret named DAGGER_CLOUD_TOKEN
+          # set via the GitHub UI/CLI
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+      - name: Upload Binary
+        id: upload-pdf
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooklatex
+          path: /tmp/cooklatex
+
