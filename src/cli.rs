@@ -15,4 +15,7 @@ pub struct Cli {
     /// Convert to a unit system
     #[arg(short, long, alias = "system", value_name = "SYSTEM")]
     pub convert: Option<System>,
+
+    #[arg(short = 'u', long, help = "Path to a custom units file in TOML format")]
+    pub units_file: Option<String>,
 }

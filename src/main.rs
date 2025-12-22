@@ -14,9 +14,18 @@ fn main() -> Result<()> {
     let latex_dir = Path::new(&cli.latex_dir);
     let output_dir = Path::new(&cli.latex_out_dir);
 
+    let units_file = if let Some(units_file) = &cli.units_file {
+        let text = std::fs::read_to_string(&units_file)
+            .with_context(|| format!("Cannot find units file: {}", units_file))?;
+        let units = toml::from_str(&text)?;
+        Some(units)
+    } else {
+        None
+    };
+
     io::clone_folder_to_target(latex_dir, output_dir).context("Failed to clone LaTeX directory")?;
 
-    let transpiler = recipe::RecipeTranspiler::new(cli.convert, output_dir);
+    let transpiler = recipe::RecipeTranspiler::new(cli.convert, output_dir, units_file);
     let mut latex = latex::LatexBuilder::new();
 
     for collection in cli.collections {
