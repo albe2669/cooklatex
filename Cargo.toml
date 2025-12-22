@@ -7,3 +7,4 @@ edition = "2021"
 anyhow = "1.0.95"
 clap = { version = "4.5.29", features = ["derive"] }
 cooklang = { git = "https://github.com/cooklang/cooklang-rs.git"}
+toml = "0.9"

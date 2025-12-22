@@ -3,9 +3,10 @@ use std::path::{Path, PathBuf};
 use crate::{io, latex::LatexBuilder};
 use anyhow::{Context, Result};
 use cooklang::{
-    convert::System, ingredient_list::GroupedIngredient, metadata::StdKey, scale::Servings,
-    Content, Converter, CooklangParser, Item, Metadata, Quantity, Recipe, ScalableValue,
-    ScaledRecipe, Step,
+    convert::{ConverterBuilder, System, UnitsFile},
+    ingredient_list::GroupedIngredient,
+    metadata::StdKey,
+    Content, Converter, CooklangParser, Extensions, Item, Metadata, Quantity, Recipe, Step,
 };
 
 #[derive(Debug)]
@@ -16,9 +17,26 @@ pub struct RecipeTranspiler<'a> {
 }
 
 impl<'a> RecipeTranspiler<'a> {
-    pub fn new(convert_system: Option<System>, output_dir: &'a Path) -> Self {
+    pub fn new(
+        convert_system: Option<System>,
+        output_dir: &'a Path,
+        units_file: Option<UnitsFile>,
+    ) -> Self {
+        let converter = if let Some(units_file) = units_file {
+            let mut builder = ConverterBuilder::new();
+            builder
+                .add_bundled_units()
+                .expect("Failed to load bundled units");
+            builder
+                .add_units_file(units_file)
+                .expect("Failed to load units file");
+            builder.finish().expect("Failed to create converter")
+        } else {
+            Converter::empty()
+        };
+
         Self {
-            parser: CooklangParser::extended(),
+            parser: CooklangParser::new(Extensions::all(), converter),
             convert_system,
             output_dir,
         }
@@ -63,7 +81,7 @@ impl<'a> RecipeTranspiler<'a> {
         let recipe = self.parse_recipe(&contents, file_name)?;
         let converter = self.parser.converter();
 
-        let mut scaled = recipe.default_scale();
+        let mut scaled = recipe;
         if let Some(system) = self.convert_system {
             for error in scaled.convert(system, converter) {
                 eprintln!("Warning: {}", error);
@@ -75,11 +93,7 @@ impl<'a> RecipeTranspiler<'a> {
         write_recipe(self.output_dir, collection_name, file_name, &latex)
     }
 
-    fn parse_recipe(
-        &self,
-        contents: &str,
-        file_name: &str,
-    ) -> Result<Recipe<Servings, ScalableValue>> {
+    fn parse_recipe(&self, contents: &str, file_name: &str) -> Result<Recipe> {
         match self.parser.parse(contents).into_result() {
             Ok((recipe, warnings)) => {
                 warnings.eprint(file_name, contents, true)?;
@@ -126,7 +140,7 @@ impl RecipeTime {
     }
 }
 
-pub fn create_recipe(recipe: ScaledRecipe, converter: &Converter) -> Result<String> {
+pub fn create_recipe(recipe: Recipe, converter: &Converter) -> Result<String> {
     let title = recipe
         .metadata
         .title()
@@ -150,7 +164,7 @@ pub fn create_recipe(recipe: ScaledRecipe, converter: &Converter) -> Result<Stri
         .build())
 }
 
-fn build_recipe_content(recipe: &ScaledRecipe, converter: &Converter) -> Result<LatexBuilder> {
+fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> Result<LatexBuilder> {
     let mut content = LatexBuilder::new();
 
     let ingredients = ingredient_list(&recipe.group_ingredients(converter));
@@ -166,7 +180,7 @@ fn build_recipe_content(recipe: &ScaledRecipe, converter: &Converter) -> Result<
 fn recipe_meta(meta: &Metadata) -> Vec<String> {
     let servings = meta
         .servings()
-        .and_then(|x| x.first().map(|x| x.to_string()))
+        .map(|s| s.to_string())
         .expect("Servings must be defined");
 
     let times = RecipeTime::from_metadata(meta);
@@ -187,6 +201,14 @@ fn format_quantity(qty: &Quantity) -> String {
         Some(unit) => format!("{} {}", qty.value(), unit),
         None => format!("{}", qty.value()),
     }
+}
+
+fn sanitize_latex(input: &str) -> String {
+    input
+        .replace("&", "\\&")
+        .replace("%", "\\%")
+        .replace("$", "\\$")
+        .replace("#", "\\#")
 }
 
 fn ingredient_list(ingredients: &Vec<GroupedIngredient>) -> LatexBuilder {
@@ -217,13 +239,13 @@ fn ingredient_list(ingredients: &Vec<GroupedIngredient>) -> LatexBuilder {
         }
 
         parts.push(ingredient.display_name().to_string());
-        latex.add_simple_command("item", &parts.join(" "));
+        latex.add_simple_command("item", &sanitize_latex(&parts.join(" ")));
     }
 
     latex
 }
 
-fn instruction_list(recipe: &ScaledRecipe) -> LatexBuilder {
+fn instruction_list(recipe: &Recipe) -> LatexBuilder {
     let mut latex = LatexBuilder::new();
 
     for section in &recipe.sections {
@@ -233,14 +255,14 @@ fn instruction_list(recipe: &ScaledRecipe) -> LatexBuilder {
                 Content::Text(text) => text.clone(),
             };
 
-            latex.add_simple_command("item", &instruction);
+            latex.add_simple_command("item", &sanitize_latex(&instruction));
         }
     }
 
     latex
 }
 
-fn step_text(recipe: &ScaledRecipe, step: &Step) -> String {
+fn step_text(recipe: &Recipe, step: &Step) -> String {
     step.items
         .iter()
         .map(|item| match item {
