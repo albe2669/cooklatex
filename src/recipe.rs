@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{io, latex::LatexBuilder};
 use anyhow::{Context, Result};
@@ -6,7 +9,8 @@ use cooklang::{
     convert::{ConverterBuilder, System, UnitsFile},
     ingredient_list::GroupedIngredient,
     metadata::StdKey,
-    Content, Converter, CooklangParser, Extensions, Item, Metadata, Quantity, Recipe, Step,
+    Content, Converter, CooklangParser, Extensions, GroupedQuantity, Ingredient, Item, Metadata,
+    Quantity, Recipe, Step,
 };
 
 #[derive(Debug)]
@@ -167,7 +171,8 @@ pub fn create_recipe(recipe: Recipe, converter: &Converter) -> Result<String> {
 fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> Result<LatexBuilder> {
     let mut content = LatexBuilder::new();
 
-    let ingredients = ingredient_list(&recipe.group_ingredients(converter));
+    let grouped_ingredients = get_ingredients_by_section(recipe, converter);
+    let ingredients = ingredient_list(&grouped_ingredients);
     let instructions = instruction_list(recipe);
 
     content
@@ -211,41 +216,94 @@ fn sanitize_latex(input: &str) -> String {
         .replace("#", "\\#")
 }
 
-fn ingredient_list(ingredients: &Vec<GroupedIngredient>) -> LatexBuilder {
+fn get_ingredients_by_section<'a>(
+    recipe: &'a Recipe,
+    converter: &'a Converter,
+) -> Vec<(Option<String>, Vec<GroupedIngredient<'a>>)> {
+    let mut sections: Vec<(Option<String>, Vec<GroupedIngredient>)> = Vec::new();
+
+    for section in &recipe.sections {
+        let mut ingredients: HashMap<String, (&usize, &'a Ingredient, GroupedQuantity)> =
+            HashMap::new();
+
+        for content in &section.content {
+            if let Content::Step(step) = content {
+                for item in &step.items {
+                    if let Item::Ingredient { index } = item {
+                        let ingredient = &recipe.ingredients[*index];
+                        let display_name = ingredient.display_name().to_string();
+
+                        let grouped_quantity = ingredients.entry(display_name.clone()).or_insert((
+                            index,
+                            ingredient,
+                            GroupedQuantity::default(),
+                        ));
+
+                        if let Some(q) = &ingredient.quantity {
+                            grouped_quantity.2.add(q, converter);
+                        }
+                    }
+                }
+            }
+        }
+
+        let section_name = section.name.clone();
+        let mut output_ingredients = ingredients
+            .iter()
+            .map(|(_name, (index, ingredient, quantity))| GroupedIngredient {
+                index: **index,
+                ingredient,
+                quantity: quantity.clone(),
+            })
+            .collect::<Vec<_>>();
+        output_ingredients.sort_by_key(|gi| gi.index);
+        sections.push((section_name.clone(), output_ingredients));
+    }
+
+    sections
+}
+
+fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) -> LatexBuilder {
     let mut latex = LatexBuilder::new();
 
-    for GroupedIngredient {
-        ingredient,
-        quantity,
-        ..
-    } in ingredients
-    {
-        if !ingredient.modifiers().should_be_listed() {
-            continue;
+    for (section_name, ingredients) in ingredients {
+        if let Some(name) = section_name {
+            latex.add_simple_command("ingredientsection", &sanitize_latex(name));
         }
 
-        let mut parts = Vec::new();
-
-        if let Some(qty_str) = quantity
-            .iter()
-            .map(format_quantity)
-            .reduce(|a, b| format!("{}, {}", a, b))
+        for GroupedIngredient {
+            ingredient,
+            quantity,
+            ..
+        } in ingredients
         {
-            parts.push(qty_str);
+            if !ingredient.modifiers().should_be_listed() {
+                continue;
+            }
+
+            let mut parts = Vec::new();
+
+            if let Some(qty_str) = quantity
+                .iter()
+                .map(format_quantity)
+                .reduce(|a, b| format!("{}, {}", a, b))
+            {
+                parts.push(qty_str);
+            }
+
+            parts.push(ingredient.display_name().to_string());
+
+            let mut args = vec![sanitize_latex(&parts.join(" "))];
+
+            if ingredient.modifiers().is_optional() {
+                args.push("\\BooleanTrue".to_string());
+            }
+
+            latex.add_command(
+                "ingredient",
+                &args.iter().map(|x| x.as_str()).collect::<Vec<_>>(),
+            );
         }
-
-        parts.push(ingredient.display_name().to_string());
-
-        let mut args = vec![sanitize_latex(&parts.join(" "))];
-
-        if ingredient.modifiers().is_optional() {
-            args.push("\\BooleanTrue".to_string());
-        }
-
-        latex.add_command(
-            "ingredient",
-            &args.iter().map(|x| x.as_str()).collect::<Vec<_>>(),
-        );
     }
 
     latex
