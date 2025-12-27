@@ -1,24 +1,25 @@
-\documentclass[12pt]{book}
+\documentclass[12pt,openany]{book}
 \input{preamble}
 
 \begin{document}
+\pagestyle{empty}
 \frontmatter
 
-\input{fancy}
 \input{title}
 
 % i hate this
 \begingroup
-\let\newpage\relax
+\let\clearpage\relax
+\titleformat{\chapter}[display]{}{}{10ex}{}%
+[]
+\titlespacing{\chapter}{0pt}{0ex}{0ex}
+\renewcommand{\contentsname}{}
+
 \tableofcontents
 \endgroup
 
-
 \mainmatter
 \pagestyle{main}
-\titleformat{\chapter}[display]{\vfill\filcenter\bfseries}{\huge\chaptername~\thechapter}{10ex}{\Huge}%
-[\vfill\null\thispagestyle{empty}\clearpage]
-\titlespacing{\chapter}{0pt}{0ex}{0ex}
 
 %{{recipes}}
 
