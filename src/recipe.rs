@@ -56,19 +56,15 @@ impl<'a> RecipeTranspiler<'a> {
         for file in files {
             match self.transpile_recipe(&file, &collection_name) {
                 Ok(relative_path) => result_files.push(relative_path),
-                Err(e) => eprintln!(
-                    "Warning: Failed to compile recipe {}: {}",
-                    file.display(),
-                    e
-                ),
+                Err(e) => {
+                    let path = file.display();
+                    eprintln!("Warning: Failed to compile recipe {path}: {e}");
+                }
             }
         }
 
         if result_files.is_empty() {
-            anyhow::bail!(
-                "No recipes were successfully compiled in collection: {}",
-                collection_name
-            );
+            anyhow::bail!("No recipes were successfully compiled in collection: {collection_name}");
         }
 
         Ok(result_files)
@@ -88,11 +84,11 @@ impl<'a> RecipeTranspiler<'a> {
         let mut scaled = recipe;
         if let Some(system) = self.convert_system {
             for error in scaled.convert(system, converter) {
-                eprintln!("Warning: {}", error);
+                eprintln!("Warning: {error}");
             }
         }
 
-        let latex = create_recipe(scaled, converter)?;
+        let latex = create_recipe(&scaled, converter)?;
 
         write_recipe(self.output_dir, collection_name, file_name, &latex)
     }
@@ -131,20 +127,20 @@ impl RecipeTime {
 
     fn format_time(minutes: u64) -> String {
         if minutes < 60 {
-            format!("{} mins", minutes)
+            format!("{minutes} mins")
         } else {
             let hours = minutes / 60;
             let mins = minutes % 60;
             if mins == 0 {
-                format!("{} hrs", hours)
+                format!("{hours} hrs")
             } else {
-                format!("{} hrs {} mins", hours, mins)
+                format!("{hours} hrs {mins} mins")
             }
         }
     }
 }
 
-pub fn create_recipe(recipe: Recipe, converter: &Converter) -> Result<String> {
+pub fn create_recipe(recipe: &Recipe, converter: &Converter) -> Result<String> {
     let title = recipe
         .metadata
         .title()
@@ -155,10 +151,10 @@ pub fn create_recipe(recipe: Recipe, converter: &Converter) -> Result<String> {
         .context("Recipe must have a description")?;
 
     let mut latex = LatexBuilder::new();
-    let recipe_content = build_recipe_content(&recipe, converter)?;
+    let recipe_content = build_recipe_content(recipe, converter);
 
     let meta = recipe_meta(&recipe.metadata);
-    let meta = meta.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
+    let meta = meta.iter().map(String::as_str).collect::<Vec<&str>>();
 
     Ok(latex
         .add_simple_command("recipeheader", title)
@@ -168,7 +164,7 @@ pub fn create_recipe(recipe: Recipe, converter: &Converter) -> Result<String> {
         .build())
 }
 
-fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> Result<LatexBuilder> {
+fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder {
     let mut content = LatexBuilder::new();
 
     let grouped_ingredients = get_ingredients_by_section(recipe, converter);
@@ -179,7 +175,7 @@ fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> Result<LatexB
         .add_env("ingredients", &ingredients)
         .add_env("instructions", &instructions);
 
-    Ok(content)
+    content
 }
 
 fn recipe_meta(meta: &Metadata) -> Vec<String> {
@@ -203,17 +199,23 @@ fn recipe_meta(meta: &Metadata) -> Vec<String> {
 
 fn format_quantity(qty: &Quantity) -> String {
     match qty.unit() {
-        Some(unit) => format!("{} {}", qty.value(), unit),
-        None => format!("{}", qty.value()),
+        Some(unit) => {
+            let value = qty.value();
+            format!("{value} {unit}")
+        }
+        None => {
+            let value = qty.value();
+            format!("{value}")
+        }
     }
 }
 
 fn sanitize_latex(input: &str) -> String {
     input
-        .replace("&", "\\&")
-        .replace("%", "\\%")
-        .replace("$", "\\$")
-        .replace("#", "\\#")
+        .replace('&', "\\&")
+        .replace('%', "\\%")
+        .replace('$', "\\$")
+        .replace('#', "\\#")
 }
 
 fn get_ingredients_by_section<'a>(
@@ -286,7 +288,7 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
             if let Some(qty_str) = quantity
                 .iter()
                 .map(format_quantity)
-                .reduce(|a, b| format!("{}, {}", a, b))
+                .reduce(|a, b| format!("{a}, {b}"))
             {
                 parts.push(qty_str);
             }
@@ -301,7 +303,7 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
 
             latex.add_command(
                 "ingredient",
-                &args.iter().map(|x| x.as_str()).collect::<Vec<_>>(),
+                &args.iter().map(String::as_str).collect::<Vec<_>>(),
             );
         }
     }
@@ -341,18 +343,21 @@ fn step_text(recipe: &Recipe, step: &Step) -> String {
             Item::Ingredient { index } => recipe.ingredients[*index].display_name().to_string(),
             Item::Cookware { index } => recipe.cookware[*index].name.clone(),
             Item::Timer { index } => {
-                format_timer(&recipe.timers[*index].quantity, &recipe.timers[*index].name)
+                format_timer(
+                    recipe.timers[*index].quantity.as_ref(),
+                    recipe.timers[*index].name.as_deref(),
+                )
             }
             Item::InlineQuantity { index } => format_quantity(&recipe.inline_quantities[*index]),
         })
         .collect()
 }
 
-fn format_timer(quantity: &Option<Quantity>, name: &Option<String>) -> String {
+fn format_timer(quantity: Option<&Quantity>, name: Option<&str>) -> String {
     match (quantity, name) {
-        (Some(qty), Some(name)) => format!("{} ({})", format_quantity(qty), name),
+        (Some(qty), Some(name)) => format!("{} ({name})", format_quantity(qty)),
         (Some(qty), None) => format_quantity(qty),
-        (None, Some(name)) => name.clone(),
+        (None, Some(name)) => name.to_string(),
         (None, None) => unreachable!("Timer must have either quantity or name"),
     }
 }
@@ -377,7 +382,7 @@ pub fn write_recipe(
         .to_str()
         .context("Could not convert to str")?;
 
-    let relative_path = PathBuf::from(collection_name).join(format!("{}.tex", file_stem));
+    let relative_path = PathBuf::from(collection_name).join(format!("{file_stem}.tex"));
 
     let target_dir = out_dir.join(collection_name);
     let target_file = out_dir.join(&relative_path);

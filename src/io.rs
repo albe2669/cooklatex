@@ -21,7 +21,7 @@ pub fn create_dir_all(path: &Path) -> Result<()> {
 pub fn list_dir(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(fs::read_dir(path)
         .with_context(|| format!("Failed to read directory: {}", path.display()))?
-        .filter_map(|entry| entry.ok())
+        .filter_map(Result::ok)
         .map(|entry| entry.path())
         .collect())
 }

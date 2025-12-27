@@ -3,20 +3,18 @@ mod io;
 mod latex;
 mod recipe;
 
-use std::path::Path;
-
 use anyhow::{Context, Result};
 use clap::Parser;
 
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
-    let latex_dir = Path::new(&cli.latex_dir);
-    let output_dir = Path::new(&cli.latex_out_dir);
+    let latex_dir = &cli.latex_dir;
+    let output_dir = &cli.latex_out_dir;
 
     let units_file = if let Some(units_file) = &cli.units_file {
-        let text = std::fs::read_to_string(&units_file)
-            .with_context(|| format!("Cannot find units file: {}", units_file))?;
+        let text = std::fs::read_to_string(units_file)
+            .with_context(|| format!("Cannot find units file: {}", units_file.display()))?;
         let units = toml::from_str(&text)?;
         Some(units)
     } else {
@@ -28,8 +26,8 @@ fn main() -> Result<()> {
     let transpiler = recipe::RecipeTranspiler::new(cli.convert, output_dir, units_file);
     let mut latex = latex::LatexBuilder::new();
 
-    for collection in cli.collections {
-        let collection_path = Path::new(&collection);
+    for collection in &cli.collections {
+        let collection_path = collection;
         let collection_name = recipe::get_collection_name(collection_path)?;
 
         latex.add_simple_command("chapter", &collection_name);
@@ -44,10 +42,7 @@ fn main() -> Result<()> {
                     }
                 }
             }
-            Err(e) => eprintln!(
-                "Warning: Failed to process collection {}: {}",
-                collection_name, e
-            ),
+            Err(e) => eprintln!("Warning: Failed to process collection {collection_name}: {e}"),
         }
     }
 

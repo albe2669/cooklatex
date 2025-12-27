@@ -9,14 +9,13 @@ impl LatexBuilder {
     }
 
     pub fn add_command(&mut self, command: &str, args: &[&str]) -> &mut Self {
-        let formatted_args = args
+        let formatted_args: String = args
             .iter()
-            .map(|x| format!("{{{}}}", x))
-            .collect::<Vec<String>>()
-            .join("");
+            .map(|x| format!("{{{x}}}"))
+            .collect();
 
         self.content
-            .push(format!("\\{}{}", command, formatted_args));
+            .push(format!("\\{command}{formatted_args}"));
         self
     }
 
