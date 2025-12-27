@@ -226,10 +226,6 @@ fn ingredient_list(ingredients: &Vec<GroupedIngredient>) -> LatexBuilder {
 
         let mut parts = Vec::new();
 
-        if ingredient.modifiers().is_optional() {
-            parts.push("\\textit{(optional)}".to_string());
-        }
-
         if let Some(qty_str) = quantity
             .iter()
             .map(format_quantity)
@@ -239,7 +235,17 @@ fn ingredient_list(ingredients: &Vec<GroupedIngredient>) -> LatexBuilder {
         }
 
         parts.push(ingredient.display_name().to_string());
-        latex.add_simple_command("item", &sanitize_latex(&parts.join(" ")));
+
+        let mut args = vec![sanitize_latex(&parts.join(" "))];
+
+        if ingredient.modifiers().is_optional() {
+            args.push("\\BooleanTrue".to_string());
+        }
+
+        latex.add_command(
+            "ingredient",
+            &args.iter().map(|x| x.as_str()).collect::<Vec<_>>(),
+        );
     }
 
     latex
@@ -249,13 +255,20 @@ fn instruction_list(recipe: &Recipe) -> LatexBuilder {
     let mut latex = LatexBuilder::new();
 
     for section in &recipe.sections {
+        if recipe.sections.len() > 1 && section.name.is_some() {
+            latex.add_simple_command(
+                "instructionsection",
+                &sanitize_latex(section.name.as_ref().unwrap()),
+            );
+        }
+
         for content in &section.content {
             let instruction = match content {
                 Content::Step(step) => step_text(recipe, step),
                 Content::Text(text) => text.clone(),
             };
 
-            latex.add_simple_command("item", &sanitize_latex(&instruction));
+            latex.add_simple_command("step", &sanitize_latex(&instruction));
         }
     }
 
