@@ -293,7 +293,7 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
                 parts.push(qty_str);
             }
 
-            parts.push(ingredient.display_name().to_string());
+            parts.push(ingredient.name.clone());
 
             let mut args = vec![sanitize_latex(&parts.join(" "))];
 
@@ -342,12 +342,10 @@ fn step_text(recipe: &Recipe, step: &Step) -> String {
             Item::Text { value } => value.clone(),
             Item::Ingredient { index } => recipe.ingredients[*index].display_name().to_string(),
             Item::Cookware { index } => recipe.cookware[*index].name.clone(),
-            Item::Timer { index } => {
-                format_timer(
-                    recipe.timers[*index].quantity.as_ref(),
-                    recipe.timers[*index].name.as_deref(),
-                )
-            }
+            Item::Timer { index } => format_timer(
+                recipe.timers[*index].quantity.as_ref(),
+                recipe.timers[*index].name.as_deref(),
+            ),
             Item::InlineQuantity { index } => format_quantity(&recipe.inline_quantities[*index]),
         })
         .collect()
