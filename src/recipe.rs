@@ -223,6 +223,7 @@ fn sanitize_latex(input: &str) -> String {
         .replace('%', "\\%")
         .replace('$', "\\$")
         .replace('#', "\\#")
+        .replace('°', "\\textdegree{}")
 }
 
 fn get_ingredients_by_section<'a>(
