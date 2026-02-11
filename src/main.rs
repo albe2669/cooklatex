@@ -38,7 +38,7 @@ fn main() -> Result<()> {
                 while let Some(recipe_file) = iter.next() {
                     latex.add_simple_command("input", recipe_file);
                     if iter.peek().is_some() {
-                        latex.add_command("newpage", &[]);
+                        latex.add_command("newpage", &Vec::new());
                     }
                 }
             }

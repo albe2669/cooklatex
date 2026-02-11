@@ -3,7 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{io, latex::LatexBuilder};
+use crate::{
+    io,
+    latex::{Arg, LatexBuilder},
+};
 use anyhow::{Context, Result};
 use cooklang::{
     convert::{ConverterBuilder, System, UnitsFile},
@@ -154,7 +157,6 @@ pub fn create_recipe(recipe: &Recipe, converter: &Converter) -> Result<String> {
     let recipe_content = build_recipe_content(recipe, converter);
 
     let meta = recipe_meta(&recipe.metadata);
-    let meta = meta.iter().map(String::as_str).collect::<Vec<&str>>();
 
     Ok(latex
         .add_simple_command("recipeheader", title)
@@ -178,7 +180,7 @@ fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder 
     content
 }
 
-fn recipe_meta(meta: &Metadata) -> Vec<String> {
+fn recipe_meta(meta: &Metadata) -> Vec<Arg> {
     let servings = meta
         .servings()
         .map(|s| s.to_string())
@@ -194,7 +196,12 @@ fn recipe_meta(meta: &Metadata) -> Vec<String> {
         .map(RecipeTime::format_time)
         .unwrap_or_default();
 
-    vec![servings, prep_time, cook_time, "Moderate".to_string()]
+    vec![
+        Arg::required(&servings),
+        Arg::required(&prep_time),
+        Arg::required(&cook_time),
+        Arg::required("Moderate"),
+    ]
 }
 
 fn format_quantity(qty: &Quantity) -> String {
@@ -295,16 +302,13 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
 
             parts.push(ingredient.name.clone());
 
-            let mut args = vec![sanitize_latex(&parts.join(" "))];
+            let mut args = vec![Arg::required(&sanitize_latex(&parts.join(" ")))];
 
             if ingredient.modifiers().is_optional() {
-                args.push("\\BooleanTrue".to_string());
+                args.push(Arg::optional("\\BooleanTrue"));
             }
 
-            latex.add_command(
-                "ingredient",
-                &args.iter().map(String::as_str).collect::<Vec<_>>(),
-            );
+            latex.add_command("ingredient", &args);
         }
     }
 
