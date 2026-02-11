@@ -177,6 +177,11 @@ fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder 
         .add_env("ingredients", &ingredients)
         .add_env("instructions", &instructions);
 
+    let note = get_recipe_note(&recipe.metadata);
+    if let Some(note) = note {
+        content.add_simple_command("recipenote", &sanitize_latex(&note));
+    }
+
     content
 }
 
@@ -363,6 +368,11 @@ fn format_timer(quantity: Option<&Quantity>, name: Option<&str>) -> String {
         (None, Some(name)) => name.to_string(),
         (None, None) => unreachable!("Timer must have either quantity or name"),
     }
+}
+
+fn get_recipe_note(meta: &Metadata) -> Option<String> {
+    meta.get("note")
+        .and_then(|note| note.as_str().map(String::from))
 }
 
 pub fn get_collection_name(path: &Path) -> Result<String> {
