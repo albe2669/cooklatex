@@ -240,9 +240,9 @@ fn get_ingredients_by_section<'a>(
                 for item in &step.items {
                     if let Item::Ingredient { index } = item {
                         let ingredient = &recipe.ingredients[*index];
-                        let display_name = ingredient.display_name().to_string();
+                        let name = ingredient.name.clone();
 
-                        let grouped_quantity = ingredients.entry(display_name.clone()).or_insert((
+                        let grouped_quantity = ingredients.entry(name.clone()).or_insert((
                             index,
                             ingredient,
                             GroupedQuantity::default(),
