@@ -246,6 +246,9 @@ fn get_ingredients_by_section<'a>(
                 for item in &step.items {
                     if let Item::Ingredient { index } = item {
                         let ingredient = &recipe.ingredients[*index];
+                        if !ingredient.modifiers().should_be_listed() {
+                            continue;
+                        }
                         let name = ingredient.name.clone();
 
                         let grouped_quantity = ingredients.entry(name.clone()).or_insert((
@@ -282,6 +285,9 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
     let mut latex = LatexBuilder::new();
 
     for (section_name, ingredients) in ingredients {
+        if ingredients.is_empty() {
+            continue;
+        }
         if let Some(name) = section_name {
             latex.add_simple_command("ingredientsection", &sanitize_latex(name));
         }
