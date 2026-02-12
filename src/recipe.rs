@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -255,6 +255,8 @@ fn get_ingredients_by_section<'a>(
 ) -> Vec<(Option<String>, Vec<GroupedIngredient<'a>>)> {
     let mut sections: Vec<(Option<String>, Vec<GroupedIngredient>)> = Vec::new();
 
+    let mut listed_ingredients = HashSet::new();
+
     for section in &recipe.sections {
         let mut ingredients: HashMap<String, (&usize, &'a Ingredient, GroupedQuantity)> =
             HashMap::new();
@@ -264,10 +266,19 @@ fn get_ingredients_by_section<'a>(
                 for item in &step.items {
                     if let Item::Ingredient { index } = item {
                         let ingredient = &recipe.ingredients[*index];
-                        if !ingredient.modifiers().should_be_listed() {
+                        let name = ingredient.name.clone();
+
+                        if ingredient.modifiers().should_be_listed() {
+                            if !listed_ingredients.contains(&name) {
+                                listed_ingredients.insert(name.clone());
+                            }
+                        } else if !listed_ingredients.contains(&name)
+                            || ingredient.modifiers().is_hidden()
+                        {
+                            // If the ingredient shouldn't be listed and hasn't been seen before,
+                            // skip it
                             continue;
                         }
-                        let name = ingredient.name.clone();
 
                         let grouped_quantity = ingredients.entry(name.clone()).or_insert((
                             index,
@@ -316,10 +327,6 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
             ..
         } in ingredients
         {
-            if !ingredient.modifiers().should_be_listed() {
-                continue;
-            }
-
             let mut parts = Vec::new();
 
             if let Some(qty_str) = quantity
