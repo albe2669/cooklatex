@@ -110,10 +110,12 @@
 }
 
 % Custom command for recipe header
-\newcommand{\recipeheader}[1]{
+\NewDocumentCommand{\recipeheader}{ m o }{%
+  \phantomsection % Add an invisible section for correct page referencing
 	\addcontentsline{toc}{section}{#1}
 	\begin{center}
 		{\fontsize{24}{28}\selectfont\textbf{#1}}
+    \IfNoValueF{#2}{\\\vspace{0.5em}\textit{#2}}
 		\vspace{1em}
 	\end{center}
 }

@@ -144,10 +144,6 @@ impl RecipeTime {
 }
 
 pub fn create_recipe(recipe: &Recipe, converter: &Converter) -> Result<String> {
-    let title = recipe
-        .metadata
-        .title()
-        .context("Recipe must have a title")?;
     let description = recipe
         .metadata
         .description()
@@ -159,11 +155,33 @@ pub fn create_recipe(recipe: &Recipe, converter: &Converter) -> Result<String> {
     let meta = recipe_meta(&recipe.metadata);
 
     Ok(latex
-        .add_simple_command("recipeheader", title)
+        .add_builder(&build_recipe_header(recipe))
         .add_simple_command("recipedesc", description)
         .add_command("recipemeta", &meta)
         .add_env("recipe", &recipe_content)
         .build())
+}
+
+fn build_recipe_header(recipe: &Recipe) -> LatexBuilder {
+    let title = recipe
+        .metadata
+        .title()
+        .context("Recipe must have a title")
+        .unwrap();
+
+    let mut args = vec![Arg::required(&sanitize_latex(title))];
+
+    if let Some(Some(source)) = recipe
+        .metadata
+        .source()
+        .map(|s| s.name().map(|n| n.to_string()))
+    {
+        args.push(Arg::optional(&sanitize_latex(&source)))
+    }
+
+    let mut latex = LatexBuilder::new();
+    latex.add_command("recipeheader", &args);
+    latex
 }
 
 fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder {

@@ -52,8 +52,13 @@ impl LatexBuilder {
 
     pub fn add_env(&mut self, env: &str, content: &LatexBuilder) -> &mut Self {
         self.add_simple_command("begin", env);
-        self.content.extend(content.content.iter().cloned());
+        self.add_builder(content);
         self.add_simple_command("end", env)
+    }
+
+    pub fn add_builder(&mut self, other: &LatexBuilder) -> &mut Self {
+        self.content.extend(other.content.iter().cloned());
+        self
     }
 
     pub fn build(&self) -> String {
