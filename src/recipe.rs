@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     io,
-    latex::{Arg, LatexBuilder},
+    latex::{sanitize_latex, Arg, LatexBuilder},
 };
 use anyhow::{Context, Result};
 use cooklang::{
@@ -238,15 +238,6 @@ fn format_quantity(qty: &Quantity) -> String {
             format!("{value}")
         }
     }
-}
-
-fn sanitize_latex(input: &str) -> String {
-    input
-        .replace('&', "\\&")
-        .replace('%', "\\%")
-        .replace('$', "\\$")
-        .replace('#', "\\#")
-        .replace('°', "\\textdegree{}")
 }
 
 fn get_ingredients_by_section<'a>(

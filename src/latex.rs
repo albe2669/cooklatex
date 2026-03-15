@@ -65,3 +65,12 @@ impl LatexBuilder {
         self.content.join("\n")
     }
 }
+
+pub fn sanitize_latex(input: &str) -> String {
+    input
+        .replace('&', "\\&")
+        .replace('%', "\\%")
+        .replace('$', "\\$")
+        .replace('#', "\\#")
+        .replace('°', "\\textdegree{}")
+}

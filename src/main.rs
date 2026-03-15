@@ -6,6 +6,8 @@ mod recipe;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::latex::sanitize_latex;
+
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
@@ -30,7 +32,7 @@ fn main() -> Result<()> {
         let collection_path = collection;
         let collection_name = recipe::get_collection_name(collection_path)?;
 
-        latex.add_simple_command("chapter", &collection_name);
+        latex.add_simple_command("chapter", &sanitize_latex(&collection_name));
 
         match transpiler.transpile_collection(collection_path) {
             Ok(recipe_files) => {
