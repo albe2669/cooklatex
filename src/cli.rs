@@ -20,4 +20,12 @@ pub struct Cli {
 
     #[arg(short = 'u', long, help = "Path to a custom units file in TOML format")]
     pub units_file: Option<PathBuf>,
+
+    /// Language of the generated text (built-in: en, da)
+    #[arg(short = 'L', long, default_value = "en", value_name = "LANG")]
+    pub lang: String,
+
+    /// TOML file overriding strings of the selected language (see locales/en.toml)
+    #[arg(long, value_name = "FILE")]
+    pub locale_file: Option<PathBuf>,
 }
