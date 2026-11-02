@@ -1,0 +1,27 @@
+# Dansk locale for cooklatex.
+
+babel = "danish"
+decimal_separator = ","
+
+[labels]
+servings = "Portioner"
+yield = "Giver"
+prep = "Forberedelse"
+cooking = "Tilberedning"
+difficulty = "Sværhedsgrad"
+optional = "valgfrit"
+
+[time]
+minute = "min"
+minutes = "min"
+hour = "time"
+hours = "timer"
+
+[difficulty]
+default = "moderate"
+easy = "Let"
+moderate = "Middel"
+hard = "Svær"
+
+[servings]
+units = ["person", "personer", "pers.", "pers", "portion", "portioner", "kuverter", "kuvert"]

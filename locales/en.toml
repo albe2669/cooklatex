@@ -1,0 +1,37 @@
+# English locale for cooklatex.
+#
+# Any of these keys can be overridden with `--locale-file`, which is merged on
+# top of the locale selected with `--lang`.
+
+# Language passed to babel (and isodate) in the LaTeX template
+babel = "english"
+
+# Decimal separator used when printing quantities, e.g. "0.5" or "0,5"
+decimal_separator = "."
+
+[labels]
+# Used when `servings` is a plain number/range, or uses one of `servings.units`
+servings = "Serves"
+# Used when `servings` has any other unit, e.g. "16 buns" or "1 tart"
+yield = "Makes"
+prep = "Prep"
+cooking = "Cooking"
+difficulty = "Difficulty"
+optional = "optional"
+
+[time]
+minute = "min"
+minutes = "mins"
+hour = "hr"
+hours = "hrs"
+
+[difficulty]
+default = "moderate"
+easy = "Easy"
+moderate = "Moderate"
+hard = "Hard"
+
+[servings]
+# Units that mean "people/portions". A `servings` value using one of these is
+# shown under the `servings` label with the unit dropped ("4 people" -> "4").
+units = ["person", "persons", "people", "serving", "servings", "portion", "portions"]

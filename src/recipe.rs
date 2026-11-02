@@ -6,10 +6,13 @@ use std::{
 use crate::{
     io,
     latex::{sanitize_latex, Arg, LatexBuilder},
+    locale::Locale,
+    servings::{ServingsInfo, ServingsKind},
 };
 use anyhow::{Context, Result};
 use cooklang::{
     convert::{ConverterBuilder, System, UnitsFile},
+    error::write_rich_error,
     ingredient_list::GroupedIngredient,
     metadata::StdKey,
     Content, Converter, CooklangParser, Extensions, GroupedQuantity, Ingredient, Item, Metadata,
@@ -21,6 +24,7 @@ pub struct RecipeTranspiler<'a> {
     parser: CooklangParser,
     convert_system: Option<System>,
     output_dir: &'a Path,
+    locale: &'a Locale,
 }
 
 impl<'a> RecipeTranspiler<'a> {
@@ -28,6 +32,7 @@ impl<'a> RecipeTranspiler<'a> {
         convert_system: Option<System>,
         output_dir: &'a Path,
         units_file: Option<UnitsFile>,
+        locale: &'a Locale,
     ) -> Self {
         let converter = if let Some(units_file) = units_file {
             let mut builder = ConverterBuilder::new();
@@ -46,6 +51,7 @@ impl<'a> RecipeTranspiler<'a> {
             parser: CooklangParser::new(Extensions::all(), converter),
             convert_system,
             output_dir,
+            locale,
         }
     }
 
@@ -91,7 +97,7 @@ impl<'a> RecipeTranspiler<'a> {
             }
         }
 
-        let latex = create_recipe(&scaled, converter)?;
+        let latex = create_recipe(&scaled, converter, self.locale)?;
 
         write_recipe(self.output_dir, collection_name, file_name, &latex)
     }
@@ -99,7 +105,11 @@ impl<'a> RecipeTranspiler<'a> {
     fn parse_recipe(&self, contents: &str, file_name: &str) -> Result<Recipe> {
         match self.parser.parse(contents).into_result() {
             Ok((recipe, warnings)) => {
-                warnings.eprint(file_name, contents, true)?;
+                // Free-form servings ("16 boller") are supported, so don't
+                // warn about them not being a number.
+                for warning in warnings.warnings().filter(|w| !is_servings_warning(w)) {
+                    write_rich_error(warning, file_name, contents, true, std::io::stderr())?;
+                }
                 Ok(recipe)
             }
             Err(e) => {
@@ -127,36 +137,28 @@ impl RecipeTime {
             cook_time: get_u64_meta(metadata, StdKey::CookTime),
         }
     }
-
-    fn format_time(minutes: u64) -> String {
-        if minutes < 60 {
-            format!("{minutes} mins")
-        } else {
-            let hours = minutes / 60;
-            let mins = minutes % 60;
-            if mins == 0 {
-                format!("{hours} hrs")
-            } else {
-                format!("{hours} hrs {mins} mins")
-            }
-        }
-    }
 }
 
-pub fn create_recipe(recipe: &Recipe, converter: &Converter) -> Result<String> {
+fn is_servings_warning(diag: &cooklang::error::SourceDiag) -> bool {
+    ["servings", "serves", "yield"]
+        .iter()
+        .any(|key| diag.message == format!("Unsupported value for key: '{key}'"))
+}
+
+pub fn create_recipe(recipe: &Recipe, converter: &Converter, locale: &Locale) -> Result<String> {
     let description = recipe
         .metadata
         .description()
         .context("Recipe must have a description")?;
 
     let mut latex = LatexBuilder::new();
-    let recipe_content = build_recipe_content(recipe, converter);
+    let recipe_content = build_recipe_content(recipe, converter, locale);
 
-    let meta = recipe_meta(&recipe.metadata);
+    let meta = recipe_meta(&recipe.metadata, locale)?;
 
     Ok(latex
         .add_builder(&build_recipe_header(recipe))
-        .add_simple_command("recipedesc", description)
+        .add_simple_command("recipedesc", &sanitize_latex(description))
         .add_command("recipemeta", &meta)
         .add_env("recipe", &recipe_content)
         .build())
@@ -184,12 +186,12 @@ fn build_recipe_header(recipe: &Recipe) -> LatexBuilder {
     latex
 }
 
-fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder {
+fn build_recipe_content(recipe: &Recipe, converter: &Converter, locale: &Locale) -> LatexBuilder {
     let mut content = LatexBuilder::new();
 
     let grouped_ingredients = get_ingredients_by_section(recipe, converter);
-    let ingredients = ingredient_list(&grouped_ingredients);
-    let instructions = instruction_list(recipe);
+    let ingredients = ingredient_list(&grouped_ingredients, locale);
+    let instructions = instruction_list(recipe, locale);
 
     content
         .add_env("ingredients", &ingredients)
@@ -203,40 +205,56 @@ fn build_recipe_content(recipe: &Recipe, converter: &Converter) -> LatexBuilder 
     content
 }
 
-fn recipe_meta(meta: &Metadata) -> Vec<Arg> {
-    let servings = meta
+fn recipe_meta(meta: &Metadata, locale: &Locale) -> Result<Vec<Arg>> {
+    let raw_servings = meta
         .servings()
         .map(|s| s.to_string())
-        .expect("Servings must be defined");
+        .context("Recipe must have servings")?;
+    let servings = ServingsInfo::parse(&raw_servings, locale);
+    let servings_label = match servings.kind {
+        ServingsKind::Servings => r"\clservingslabel",
+        ServingsKind::Yield => r"\clyieldlabel",
+    };
 
     let times = RecipeTime::from_metadata(meta);
-    let prep_time = times
-        .prep_time
-        .map(RecipeTime::format_time)
-        .unwrap_or_default();
-    let cook_time = times
-        .cook_time
-        .map(RecipeTime::format_time)
-        .unwrap_or_default();
+    let format = |t: Option<u64>| t.map(|m| locale.format_minutes(m)).unwrap_or_default();
 
-    vec![
-        Arg::required(&servings),
-        Arg::required(&prep_time),
-        Arg::required(&cook_time),
-        Arg::required("Moderate"),
-    ]
+    let difficulty = locale.difficulty(meta.get("difficulty").and_then(|d| d.as_str()));
+
+    Ok(vec![
+        Arg::required(servings_label),
+        Arg::required(&en_dash_ranges(&sanitize_latex(&servings.text))),
+        Arg::required(&format(times.prep_time)),
+        Arg::required(&format(times.cook_time)),
+        Arg::required(&sanitize_latex(&difficulty)),
+    ])
 }
 
-fn format_quantity(qty: &Quantity) -> String {
+/// Typeset numeric ranges like `4-6` with an en dash.
+fn en_dash_ranges(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    for (i, c) in chars.iter().enumerate() {
+        let is_range = *c == '-'
+            && i > 0
+            && chars[i - 1].is_ascii_digit()
+            && chars.get(i + 1).is_some_and(char::is_ascii_digit);
+        if is_range {
+            out.push_str("--");
+        } else {
+            out.push(*c);
+        }
+    }
+    out
+}
+
+fn format_quantity(qty: &Quantity, locale: &Locale) -> String {
     match qty.unit() {
         Some(unit) => {
-            let value = qty.value();
+            let value = locale.localize_number(&qty.value().to_string());
             format!("{value} {unit}")
         }
-        None => {
-            let value = qty.value();
-            format!("{value}")
-        }
+        None => locale.localize_number(&qty.value().to_string()),
     }
 }
 
@@ -301,7 +319,10 @@ fn get_ingredients_by_section<'a>(
     sections
 }
 
-fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) -> LatexBuilder {
+fn ingredient_list(
+    ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>,
+    locale: &Locale,
+) -> LatexBuilder {
     let mut latex = LatexBuilder::new();
 
     for (section_name, ingredients) in ingredients {
@@ -322,7 +343,7 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
 
             if let Some(qty_str) = quantity
                 .iter()
-                .map(format_quantity)
+                .map(|q| format_quantity(q, locale))
                 .reduce(|a, b| format!("{a}, {b}"))
             {
                 parts.push(qty_str);
@@ -343,7 +364,7 @@ fn ingredient_list(ingredients: &Vec<(Option<String>, Vec<GroupedIngredient>)>) 
     latex
 }
 
-fn instruction_list(recipe: &Recipe) -> LatexBuilder {
+fn instruction_list(recipe: &Recipe, locale: &Locale) -> LatexBuilder {
     let mut latex = LatexBuilder::new();
 
     for section in &recipe.sections {
@@ -356,7 +377,7 @@ fn instruction_list(recipe: &Recipe) -> LatexBuilder {
 
         for content in &section.content {
             let instruction = match content {
-                Content::Step(step) => step_text(recipe, step),
+                Content::Step(step) => step_text(recipe, step, locale),
                 Content::Text(text) => text.clone(),
             };
 
@@ -367,7 +388,7 @@ fn instruction_list(recipe: &Recipe) -> LatexBuilder {
     latex
 }
 
-fn step_text(recipe: &Recipe, step: &Step) -> String {
+fn step_text(recipe: &Recipe, step: &Step, locale: &Locale) -> String {
     step.items
         .iter()
         .map(|item| match item {
@@ -377,16 +398,19 @@ fn step_text(recipe: &Recipe, step: &Step) -> String {
             Item::Timer { index } => format_timer(
                 recipe.timers[*index].quantity.as_ref(),
                 recipe.timers[*index].name.as_deref(),
+                locale,
             ),
-            Item::InlineQuantity { index } => format_quantity(&recipe.inline_quantities[*index]),
+            Item::InlineQuantity { index } => {
+                format_quantity(&recipe.inline_quantities[*index], locale)
+            }
         })
         .collect()
 }
 
-fn format_timer(quantity: Option<&Quantity>, name: Option<&str>) -> String {
+fn format_timer(quantity: Option<&Quantity>, name: Option<&str>, locale: &Locale) -> String {
     match (quantity, name) {
-        (Some(qty), Some(name)) => format!("{} ({name})", format_quantity(qty)),
-        (Some(qty), None) => format_quantity(qty),
+        (Some(qty), Some(name)) => format!("{} ({name})", format_quantity(qty, locale)),
+        (Some(qty), None) => format_quantity(qty, locale),
         (None, Some(name)) => name.to_string(),
         (None, None) => unreachable!("Timer must have either quantity or name"),
     }

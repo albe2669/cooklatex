@@ -1,7 +1,9 @@
 mod cli;
 mod io;
 mod latex;
+mod locale;
 mod recipe;
+mod servings;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -23,9 +25,12 @@ fn main() -> Result<()> {
         None
     };
 
-    io::clone_folder_to_target(latex_dir, output_dir).context("Failed to clone LaTeX directory")?;
+    let locale = locale::Locale::load(&cli.lang, cli.locale_file.as_deref())?;
 
-    let transpiler = recipe::RecipeTranspiler::new(cli.convert, output_dir, units_file);
+    io::clone_folder_to_target(latex_dir, output_dir).context("Failed to clone LaTeX directory")?;
+    io::write_file(&output_dir.join(locale::LOCALE_TEX_FILE), &locale.to_tex())?;
+
+    let transpiler = recipe::RecipeTranspiler::new(cli.convert, output_dir, units_file, &locale);
     let mut latex = latex::LatexBuilder::new();
 
     for collection in &cli.collections {
